@@ -22,6 +22,15 @@ LCD_ROWS=2
 
 DEBUG=False
 
+# Buttons check period (in seconds)
+BUTTON_POLL=0.2
+# STATUS request period (in # of BUTTON_POLL periods)
+STATUS_POLL=5
+# Info page cycle rate (in # of STATUS_POLL periods=
+PAGE_CYCLE=2
+
+prev_button = None
+
 # Connection parameters
 def load_info():
    
@@ -52,61 +61,95 @@ time.sleep(1.0)
 menu = None
 page = 0
 
+# Control of LCD
+def write_line(row, text):
+   lcd.set_cursor(0,row)
+   lcd.message(text.ljust(16))
+
 def page0(res):
-       lcd.set_cursor(0,0)
-       lcd.message(str(state[u'stateString']).ljust(16))
+       write_line(0, str(state[u'stateString']))
        if file_name is None:
            lcd.set_color(1.0,1.0,0);
            m = ' '
        else:
            lcd.set_color(0.0,1.0,0.0);
            m = str(file_name)
-       lcd.set_cursor(0,1)
-       lcd.message(m.ljust(16))
+       write_line(1, m)
 
 def page1(res):
-       lcd.set_cursor(0,0)
        m = str(res[u'progress'][u'printTime'])
-       lcd.message(("T done: " + m).ljust(16))
-       lcd.set_cursor(0,1)
+       write_line(0, m)
        m = "      " + str(res[u'progress'][u'printTimeLeft'])
-       lcd.message(("  left: " + m).ljust(16))
+       write_line(1, "  left: " + m)
 
 def page2(res):
-       lcd.set_cursor(0,0)
        m = str(res[u'temperatures'][u'extruder'][u'current'])
-       lcd.message(("C extruder: " + m).ljust(16))
-       lcd.set_cursor(0,1)
+       write_line(0,"C extruder: " + m)
        m = "      " + str(res[u'temperatures'][u'bed'][u'current'])
-       lcd.message(("       bed: " + m).ljust(16))
+       write_line(1,"       bed: " + m)
+
+# A button is returned if
+#   There is one and only one button pressed
+#   It is pressed and it was not pressed on previous check
+def check_buttons():
+   global prev_button
+   new_button = None
+   press_count = 0
+   for b in [LCD.SELECT, LCD.RIGHT, LCD.DOWN, LCD.UP, LCD.LEFT]:
+      if lcd.is_pressed(b):
+         press_count = press_count + 1
+         new_button = b
+   if press_count == 1 and prev_button != new_button:
+      prev_button = new_button
+      return new_button
+   else: 
+      prev_button = new_button  
+      return None
 
 
 connected = False
 step = 0
+
+status_poll_count = 0
+page_cycle_count = 0
 while True:
+   status_poll_count = status_poll_count + 1
+
+   # Fast cycle (if nothing else to do)
+   button = check_buttons()
+   if not button is None:
+      print "B 1 " + str(button)
+   if status_poll_count < STATUS_POLL:
+      continue
+
+   status_poll_count = 0
+
    res = load_info()
+
+   button = check_buttons()
+   if not button is None:
+      print "B 2 " + str(button)
+
+   page_cycle_count = page_cycle_count + 1
+
    if not connected:
       lcd.clear()
       lcd.set_color(0.0,1.0,0.0);
       connected = True
    job = res[u'job']
-   #print "JOB KEYS"
-   # print job.keys()
-   # print "JOB"
-   #print json.dumps(job, sort_keys=False,indent=4, separators=(',', ': '))
    state = res[u'state']
    file_name = job[u'filename']
-   if step == 0:
+   if page == 0:
       page0(res)
-   elif step == 1:
+   elif page == 1:
       page1(res)
-   elif step == 2:
+   elif page == 2:
       page2(res)
 
-   if lcd.is_pressed(LCD.SELECT):
-       print "SELECT"
+   if page_cycle_count > PAGE_CYCLE:
+      page_cycle_count = 0
+      page = page + 1 
+      if page > 2:
+         page = 0
 
-   time.sleep(2.0)
-   step = step + 1
-   if step > 2:
-      step = 0
+   time.sleep(BUTTON_POLL)
