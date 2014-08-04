@@ -42,6 +42,8 @@ def load_info():
       print json.dumps(res, sort_keys=False,indent=4, separators=(',', ': '))
    return res
 
+
+
 # read apikey
 # TODO Handle errors
 with open('apikey') as apikeyfile:
@@ -68,6 +70,10 @@ def write_line(row, text):
 
 def page0(res):
        write_line(0, str(state[u'stateString']))
+       button = check_buttons()
+       if not button is None:
+           print "B P 0 " + str(button)
+
        if file_name is None:
            lcd.set_color(1.0,1.0,0);
            m = ' '
@@ -79,12 +85,20 @@ def page0(res):
 def page1(res):
        m = str(res[u'progress'][u'printTime'])
        write_line(0, m)
+       button = check_buttons()
+       if not button is None:
+           print "B P 1 " + str(button)
+
+
        m = "      " + str(res[u'progress'][u'printTimeLeft'])
        write_line(1, "  left: " + m)
 
 def page2(res):
        m = str(res[u'temperatures'][u'extruder'][u'current'])
        write_line(0,"C extruder: " + m)
+       button = check_buttons()
+       if not button is None:
+           print "B P 2 " + str(button)
        m = "      " + str(res[u'temperatures'][u'bed'][u'current'])
        write_line(1,"       bed: " + m)
 
@@ -129,6 +143,7 @@ while True:
    button = check_buttons()
    if not button is None:
       print "B 2 " + str(button)
+      continue
 
    page_cycle_count = page_cycle_count + 1
 
